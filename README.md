@@ -13,7 +13,7 @@
 1. Import the OpenCVForUnity.
     * Setup the OpenCVForUnity. (Tools > OpenCV for Unity > Set Plugin Import Settings)
     * Set "Assets/OpenCVForUnity/Plugin/Android/libs/arm64-v8a/libopencvforunity.so" Import Settings.
-    * Delete the code and example related to the WebCamTexture class.
+    * Enclose the code related to the WebCamTexture class with #if UNITY_EDITOR and #endif.
     * Downlod https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3-tiny.cfg. Copy yolov3-tiny.cfg to "Assets/StreamingAssets/dnn/" folder. Downlod  https://pjreddie.com/media/files/yolov3-tiny.weights. Copy yolov3-tiny.weights to "Assets/StreamingAssets/dnn/" folder. Downlod  https://github.com/pjreddie/darknet/tree/master/data/coco.names. Copy coco.names to "Assets/StreamingAssets/dnn/" folder. 
     ![magicleap_settings.png](magicleap_settings.png)
 1. Import the MagicLeapWithOpenCVForUnityExample.unitypackage.

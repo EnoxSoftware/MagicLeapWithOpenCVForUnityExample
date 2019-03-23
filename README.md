@@ -17,10 +17,11 @@
     ![magicleap_settings.png](magicleap_settings.png)
     * Enclose the code related to the WebCamTexture class with #if UNITY_EDITOR and #endif. ( The WebCamTexture class is not included in the MagicLeap API, so an error occurs at build time. )
     ![enclose_utils.png](enclose_utils.png)
-    Assets/OpenCVForUnity/org/opencv/unity/Utils.cs
+    Assets/OpenCVForUnity/org/opencv/unity/Utils.cs (L496 - L620)
     ![enclose_webcamtexturetomathelper.png](enclose_webcamtexturetomathelper.png)
-    Assets/OpenCVForUnity/org/opencv/unity/helper/WebCamTextureToMatHelper.cs
-    * Delete "Assets/OpenCVForUnity/Examples" folder.
+    Assets/OpenCVForUnity/org/opencv/unity/helper/WebCamTextureToMatHelper.cs (L1 - L939)
+    * Delete "Assets/OpenCVForUnity/Examples" folders.
+    ![delete_examples.png](delete_examples.png)
     * Downlod https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3-tiny.cfg. Copy yolov3-tiny.cfg to "Assets/StreamingAssets/dnn/" folder. Downlod  https://pjreddie.com/media/files/yolov3-tiny.weights. Copy yolov3-tiny.weights to "Assets/StreamingAssets/dnn/" folder. Downlod  https://github.com/pjreddie/darknet/tree/master/data/coco.names. Copy coco.names to "Assets/StreamingAssets/dnn/" folder.     
 1. Import the MagicLeapWithOpenCVForUnityExample.unitypackage.
 1. Add the "Assets/MagicLeapWithOpenCVForUnityExample/*.unity" files to the "Scenes In Build" list in the "Build Settings" window.

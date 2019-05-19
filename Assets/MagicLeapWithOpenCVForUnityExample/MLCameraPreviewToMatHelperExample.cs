@@ -114,11 +114,10 @@ namespace MagicLeapWithOpenCVForUnityExample
             cascade = new CascadeClassifier ();
             cascade.load (Utils.getFilePath ("lbpcascade_frontalface.xml"));
             //            cascade.load (Utils.getFilePath ("haarcascade_frontalface_alt.xml"));
-#if !UNITY_WSA_10_0
             if (cascade.empty ()) {
                 Debug.LogError ("cascade file is not loaded. Please copy from “OpenCVForUnity/StreamingAssets/” to “Assets/StreamingAssets/” folder. ");
             }
-#endif
+
         }
 
         /// <summary>

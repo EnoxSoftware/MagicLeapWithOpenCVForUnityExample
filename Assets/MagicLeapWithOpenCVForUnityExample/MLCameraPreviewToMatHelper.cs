@@ -985,6 +985,7 @@ return -1f;
         /// <returns>The mat of the current frame.</returns>
         public virtual Mat GetMat ()
         {
+
 #if !UNITY_EDITOR
 //          if (!hasInitDone || !MLCamera.Previewing) {
             if (!hasInitDone) {
@@ -994,7 +995,12 @@ return -1f;
             //Because MLCamera.PreviewTexture2D is not readable, you can not get pixels directly. So, Utils.textureToTexture2D () is used.
             //Utils.texture2DToMat (MLCamera.PreviewTexture2D, frameMat);
             Utils.textureToTexture2D (MLCamera.PreviewTexture2D, texture);
+            //Graphics.CopyTexture(MLCamera.PreviewTexture2D, texture);
+            
             Utils.texture2DToMat (texture, frameMat);
+
+//            int numChannels = 4;
+//            Utils.copyToMat<byte>(MagicLeapInternal.MLTextureUtils.ConvertToByteArray(MLCamera.PreviewTexture2D, out numChannels), frameMat);
 
 return frameMat;
 #else

@@ -13,22 +13,19 @@ using System.Linq;
 
 namespace MagicLeapWithOpenCVForUnityExample
 {
-    [RequireComponent (typeof(PrivilegeRequester))]
+    [RequireComponent(typeof(PrivilegeRequester))]
     public class OpenCVImageCaptureExample : MonoBehaviour
     {
         [System.Serializable]
         private class ImageCaptureEvent : UnityEvent<Texture2D>
-        {
-
-        }
+        {}
 
         #region Private Variables
-
-        [SerializeField, Space, Tooltip ("ControllerConnectionHandler reference.")]
-        private ControllerConnectionHandler _controllerConnectionHandler;
+        [SerializeField, Space, Tooltip("ControllerConnectionHandler reference.")]
+        private ControllerConnectionHandler _controllerConnectionHandler = null;
 
         [SerializeField, Space]
-        private ImageCaptureEvent OnImageReceivedEvent;
+        private ImageCaptureEvent OnImageReceivedEvent = null;
 
         private bool _isCameraConnected = false;
         private bool _isCapturing = false;
@@ -43,10 +40,9 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// lock our access into the MLCamera class, so that we don't accidentally shut down the camera
         /// while the thread is attempting to work
         /// </summary>
-        private object _cameraLockObject = new object ();
+        private object _cameraLockObject = new object();
 
-        private PrivilegeRequester _privilegeRequester;
-
+        private PrivilegeRequester _privilegeRequester = null;
         #endregion
 
         [TooltipAttribute ("Path to input image.")]
@@ -167,41 +163,42 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// <summary>
         /// Using Awake so that Privileges is set before PrivilegeRequester Start.
         /// </summary>
-        void Awake ()
+        void Awake()
         {
-            if (_controllerConnectionHandler == null) {
-                Debug.LogError ("Error: ImageCaptureExample._controllerConnectionHandler is not set, disabling script.");
+            if(_controllerConnectionHandler == null)
+            {
+                Debug.LogError("Error: ImageCaptureExample._controllerConnectionHandler is not set, disabling script.");
                 enabled = false;
                 return;
             }
 
             // If not listed here, the PrivilegeRequester assumes the request for
             // the privileges needed, CameraCapture in this case, are in the editor.
-            _privilegeRequester = GetComponent<PrivilegeRequester> ();
+            _privilegeRequester = GetComponent<PrivilegeRequester>();
 
             // Before enabling the Camera, the scene must wait until the privilege has been granted.
             _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
-
 
 
             classes_filepath = Utils.getFilePath ("dnn/" + classes);
             input_filepath = Utils.getFilePath ("dnn/" + input);
             config_filepath = Utils.getFilePath ("dnn/" + config);
             model_filepath = Utils.getFilePath ("dnn/" + model);
-//            Run ();
         }
 
         /// <summary>
         /// Stop the camera, unregister callbacks, and stop input and privileges APIs.
         /// </summary>
-        void OnDisable ()
+        void OnDisable()
         {
             MLInput.OnControllerButtonDown -= OnButtonDown;
-            lock (_cameraLockObject) {
-                if (_isCameraConnected) {
+            lock (_cameraLockObject)
+            {
+                if (_isCameraConnected)
+                {
                     MLCamera.OnRawImageAvailable -= OnCaptureRawImageComplete;
                     _isCapturing = false;
-                    DisableMLCamera ();
+                    DisableMLCamera();
                 }
             }
         }
@@ -212,14 +209,17 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// requests privileges needed and clear out the list of already granted
         /// privileges. Also, disable the camera and unregister callbacks.
         /// </summary>
-        void OnApplicationPause (bool pause)
+        void OnApplicationPause(bool pause)
         {
-            if (pause) {
-                lock (_cameraLockObject) {
-                    if (_isCameraConnected) {
+            if (pause)
+            {
+                lock (_cameraLockObject)
+                {
+                    if (_isCameraConnected)
+                    {
                         MLCamera.OnRawImageAvailable -= OnCaptureRawImageComplete;
                         _isCapturing = false;
-                        DisableMLCamera ();
+                        DisableMLCamera();
                     }
                 }
 
@@ -229,63 +229,69 @@ namespace MagicLeapWithOpenCVForUnityExample
             }
         }
 
-        void OnDestroy ()
+        void OnDestroy()
         {
-            if (_privilegeRequester != null) {
+            if (_privilegeRequester != null)
+            {
                 _privilegeRequester.OnPrivilegesDone -= HandlePrivilegesDone;
             }
         }
 
-        private void Update ()
+        private void Update()
         {
-            if (_doPrivPopup && !_hasShownPrivPopup) {
-                Instantiate (Resources.Load ("PrivilegeDeniedError"));
+            if (_doPrivPopup && !_hasShownPrivPopup)
+            {
+                Instantiate(Resources.Load("PrivilegeDeniedError"));
                 _doPrivPopup = false;
                 _hasShownPrivPopup = true;
             }
         }
-
         #endregion
 
         #region Public Methods
-
         /// <summary>
         /// Captures a still image using the device's camera and returns
         /// the data path where it is saved.
         /// </summary>
         /// <param name="fileName">The name of the file to be saved to.</param>
-        public void TriggerAsyncCapture ()
+        public void TriggerAsyncCapture()
         {
-            if (_captureThread == null || (!_captureThread.IsAlive)) {
-                ThreadStart captureThreadStart = new ThreadStart (CaptureThreadWorker);
-                _captureThread = new Thread (captureThreadStart);
-                _captureThread.Start ();
-            } else {
-                Debug.Log ("Previous thread has not finished, unable to begin a new capture just yet.");
+            if (_captureThread == null || (!_captureThread.IsAlive))
+            {
+                ThreadStart captureThreadStart = new ThreadStart(CaptureThreadWorker);
+                _captureThread = new Thread(captureThreadStart);
+                _captureThread.Start();
+            }
+            else
+            {
+                Debug.Log("Previous thread has not finished, unable to begin a new capture just yet.");
             }
         }
-
         #endregion
 
         #region Private Functions
-
         /// <summary>
         /// Connects the MLCamera component and instantiates a new instance
         /// if it was never created.
         /// </summary>
-        private void EnableMLCamera ()
+        private void EnableMLCamera()
         {
-            lock (_cameraLockObject) {
-                MLResult result = MLCamera.Start ();
-                if (result.IsOk) {
-                    result = MLCamera.Connect ();
+            lock (_cameraLockObject)
+            {
+                MLResult result = MLCamera.Start();
+                if (result.IsOk)
+                {
+                    result = MLCamera.Connect();
                     _isCameraConnected = true;
-                } else {
-                    if (result.Code == MLResultCode.PrivilegeDenied) {
-                        Instantiate (Resources.Load ("PrivilegeDeniedError"));
+                }
+                else
+                {
+                    if (result.Code == MLResultCode.PrivilegeDenied)
+                    {
+                        Instantiate(Resources.Load("PrivilegeDeniedError"));
                     }
 
-                    Debug.LogErrorFormat ("Error: ImageCaptureExample failed starting MLCamera, disabling script. Reason: {0}", result);
+                    Debug.LogErrorFormat("Error: ImageCaptureExample failed starting MLCamera, disabling script. Reason: {0}", result);
                     enabled = false;
                     return;
                 }
@@ -295,14 +301,16 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// <summary>
         /// Disconnects the MLCamera if it was ever created or connected.
         /// </summary>
-        private void DisableMLCamera ()
+        private void DisableMLCamera()
         {
-            lock (_cameraLockObject) {
-                if (MLCamera.IsStarted) {
-                    MLCamera.Disconnect ();
+            lock (_cameraLockObject)
+            {
+                if (MLCamera.IsStarted)
+                {
+                    MLCamera.Disconnect();
                     // Explicitly set to false here as the disconnect was attempted.
                     _isCameraConnected = false;
-                    MLCamera.Stop ();
+                    MLCamera.Stop();
                 }
             }
         }
@@ -310,11 +318,13 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// <summary>
         /// Once privileges have been granted, enable the camera and callbacks.
         /// </summary>
-        private void StartCapture ()
+        private void StartCapture()
         {
-            if (!_hasStarted) {
-                lock (_cameraLockObject) {
-                    EnableMLCamera ();
+            if (!_hasStarted)
+            {
+                lock (_cameraLockObject)
+                {
+                    EnableMLCamera();
                     MLCamera.OnRawImageAvailable += OnCaptureRawImageComplete;
                 }
                 MLInput.OnControllerButtonDown += OnButtonDown;
@@ -322,29 +332,29 @@ namespace MagicLeapWithOpenCVForUnityExample
                 _hasStarted = true;
             }
         }
-
         #endregion
 
         #region Event Handlers
-
         /// <summary>
         /// Responds to privilege requester result.
         /// </summary>
         /// <param name="result"/>
-        private void HandlePrivilegesDone (MLResult result)
+        private void HandlePrivilegesDone(MLResult result)
         {
-            if (!result.IsOk) {
-                if (result.Code == MLResultCode.PrivilegeDenied) {
-                    Instantiate (Resources.Load ("PrivilegeDeniedError"));
+            if (!result.IsOk)
+            {
+                if (result.Code == MLResultCode.PrivilegeDenied)
+                {
+                    Instantiate(Resources.Load("PrivilegeDeniedError"));
                 }
 
-                Debug.LogErrorFormat ("Error: ImageCaptureExample failed to get requested privileges, disabling script. Reason: {0}", result);
+                Debug.LogErrorFormat("Error: ImageCaptureExample failed to get requested privileges, disabling script. Reason: {0}", result);
                 enabled = false;
                 return;
             }
 
-            Debug.Log ("Succeeded in requesting all privileges");
-            StartCapture ();
+            Debug.Log("Succeeded in requesting all privileges");
+            StartCapture();
         }
 
         /// <summary>
@@ -352,58 +362,66 @@ namespace MagicLeapWithOpenCVForUnityExample
         /// </summary>
         /// <param name="controllerId">The id of the controller.</param>
         /// <param name="button">The button that is being pressed.</param>
-        private void OnButtonDown (byte controllerId, MLInputControllerButton button)
+        private void OnButtonDown(byte controllerId, MLInputControllerButton button)
         {
-            if (_controllerConnectionHandler.IsControllerValid (controllerId) && MLInputControllerButton.Bumper == button && !_isCapturing) {
-                TriggerAsyncCapture ();
-            }           
-//            else if (_controllerConnectionHandler.IsControllerValid (controllerId) && MLInputControllerButton.HomeTap == button) {
-//                DisableMLCamera ();
-//            }
-                
+            if (_controllerConnectionHandler.IsControllerValid(controllerId) && MLInputControllerButton.Bumper == button && !_isCapturing)
+            {
+                TriggerAsyncCapture();
+            }
         }
 
         /// <summary>
         /// Handles the event of a new image getting captured.
         /// </summary>
         /// <param name="imageData">The raw data of the image.</param>
-        private void OnCaptureRawImageComplete (byte[] imageData)
+        private void OnCaptureRawImageComplete(byte[] imageData)
         {
-            lock (_cameraLockObject) {
+            lock (_cameraLockObject)
+            {
                 _isCapturing = false;
             }
 //            // Initialize to 8x8 texture so there is no discrepency
 //            // between uninitalized captures and error texture
-//            Texture2D texture = new Texture2D (8, 8);
-//            bool status = texture.LoadImage (imageData);
+//            Texture2D texture = new Texture2D(8, 8);
+//            bool status = texture.LoadImage(imageData);
 //
-//            if (status && (texture.width != 8 && texture.height != 8)) {
-//
-//                Mat imgMat = new Mat (texture.height, texture.width, CvType.CV_8UC3);
-//                //            Debug.Log ("imgMat.ToString() " + imgMat.ToString ());
-//
-//                Utils.texture2DToMat (texture, imgMat);
-//
-//                Imgproc.cvtColor (imgMat, imgMat, Imgproc.COLOR_RGB2BGR);
-//
-//                Run (imgMat);
-//
-//                Imgproc.cvtColor (imgMat, imgMat, Imgproc.COLOR_BGR2RGB);
-//
-//                Texture2D outputTexture = new Texture2D (texture.width, texture.height, TextureFormat.RGBA32, false);
-//                Utils.matToTexture2D (imgMat, outputTexture);
-//
-//                imgMat.Dispose();
-//
-//                OnImageReceivedEvent.Invoke (outputTexture);
+//            if (status && (texture.width != 8 && texture.height != 8))
+//            {
+//                OnImageReceivedEvent.Invoke(texture);
 //            }
-                
+
+            //            // Initialize to 8x8 texture so there is no discrepency
+            //            // between uninitalized captures and error texture
+            //            Texture2D texture = new Texture2D (8, 8);
+            //            bool status = texture.LoadImage (imageData);
+            //
+            //            if (status && (texture.width != 8 && texture.height != 8)) {
+            //
+            //                Mat imgMat = new Mat (texture.height, texture.width, CvType.CV_8UC3);
+            //                //            Debug.Log ("imgMat.ToString() " + imgMat.ToString ());
+            //
+            //                Utils.texture2DToMat (texture, imgMat);
+            //
+            //                Imgproc.cvtColor (imgMat, imgMat, Imgproc.COLOR_RGB2BGR);
+            //
+            //                Run (imgMat);
+            //
+            //                Imgproc.cvtColor (imgMat, imgMat, Imgproc.COLOR_BGR2RGB);
+            //
+            //                Texture2D outputTexture = new Texture2D (texture.width, texture.height, TextureFormat.RGBA32, false);
+            //                Utils.matToTexture2D (imgMat, outputTexture);
+            //
+            //                imgMat.Dispose();
+            //
+            //                OnImageReceivedEvent.Invoke (outputTexture);
+            //            }
+
 
             Mat buff = new Mat (1, imageData.Length, CvType.CV_8UC1);
             Utils.copyToMat<byte> (imageData, buff);
 
             Mat imgMat = Imgcodecs.imdecode (buff, Imgcodecs.IMREAD_COLOR);
-//            Debug.Log ("imgMat.ToString() " + imgMat.ToString ());
+            //            Debug.Log ("imgMat.ToString() " + imgMat.ToString ());
             buff.Dispose ();
 
             Run (imgMat);
@@ -416,33 +434,30 @@ namespace MagicLeapWithOpenCVForUnityExample
             imgMat.Dispose ();
 
             OnImageReceivedEvent.Invoke (outputTexture);
-
         }
 
         /// <summary>
         /// Worker function to call the API's Capture function
         /// </summary>
-        private void CaptureThreadWorker ()
+        private void CaptureThreadWorker()
         {
-            lock (_cameraLockObject) {
-                if (MLCamera.IsStarted && _isCameraConnected) {
-
-                   
-
-                    MLResult result = MLCamera.CaptureRawImageAsync ();
-                    if (result.IsOk) {
+            lock (_cameraLockObject)
+            {
+                if (MLCamera.IsStarted && _isCameraConnected)
+                {
+                    MLResult result = MLCamera.CaptureRawImageAsync();
+                    if (result.IsOk)
+                    {
                         _isCapturing = true;
-                    } else if (result.Code == MLResultCode.PrivilegeDenied) {
+                    }
+                    else if (result.Code == MLResultCode.PrivilegeDenied)
+                    {
                         _doPrivPopup = true;
                     }
-
-
                 }
             }
         }
-
         #endregion
-
 
 
         // Use this for initialization
@@ -462,7 +477,7 @@ namespace MagicLeapWithOpenCVForUnityExample
             } else if (classesList.Count > 0) {
                 classNames = classesList;
             }
-                
+
 
 
             Net net = null;
@@ -497,7 +512,7 @@ namespace MagicLeapWithOpenCVForUnityExample
 
                 // Create a 4D blob from a frame.
                 Size inpSize = new Size (inpWidth > 0 ? inpWidth : img.cols (),
-                                   inpHeight > 0 ? inpHeight : img.rows ());
+                    inpHeight > 0 ? inpHeight : img.rows ());
                 Mat blob = Dnn.blobFromImage (img, scale, inpSize, mean, swapRB, false);
 
 
@@ -537,7 +552,7 @@ namespace MagicLeapWithOpenCVForUnityExample
                 net.Dispose ();
 
             }
-                
+
 
             Utils.setDebugMode (false);
         }
@@ -748,14 +763,14 @@ namespace MagicLeapWithOpenCVForUnityExample
                 }
             }
 
-//            int[] baseLine = new int[1];
-//            Size labelSize = Imgproc.getTextSize (label, Imgproc.FONT_HERSHEY_SIMPLEX, 2, 3, baseLine);
-//
-//            top = Mathf.Max (top, (int)labelSize.height);
-//            Imgproc.rectangle (frame, new Point (left, top - labelSize.height),
-//                new Point (left + labelSize.width, top + baseLine [0]), Scalar.all (255), Core.FILLED);
-//            Imgproc.putText (frame, label, new Point (left + 1, top + 1), Imgproc.FONT_HERSHEY_SIMPLEX, 2, new Scalar (0, 0, 0, 255), 3);
-           
+            //            int[] baseLine = new int[1];
+            //            Size labelSize = Imgproc.getTextSize (label, Imgproc.FONT_HERSHEY_SIMPLEX, 2, 3, baseLine);
+            //
+            //            top = Mathf.Max (top, (int)labelSize.height);
+            //            Imgproc.rectangle (frame, new Point (left, top - labelSize.height),
+            //                new Point (left + labelSize.width, top + baseLine [0]), Scalar.all (255), Core.FILLED);
+            //            Imgproc.putText (frame, label, new Point (left + 1, top + 1), Imgproc.FONT_HERSHEY_SIMPLEX, 2, new Scalar (0, 0, 0, 255), 3);
+
             int[] baseLine = new int[1];
             Size labelSize = Imgproc.getTextSize (label, Imgproc.FONT_HERSHEY_SIMPLEX, 2, 4, baseLine);
 

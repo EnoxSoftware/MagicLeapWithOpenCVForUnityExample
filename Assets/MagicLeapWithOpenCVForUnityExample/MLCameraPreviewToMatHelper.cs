@@ -12,7 +12,7 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
 {
     /// <summary>
     /// MLCameraPreview to mat helper.
-    /// v 1.1.0
+    /// v 1.1.1
     /// </summary>
     [RequireComponent (typeof(PrivilegeRequester))]
     public class MLCameraPreviewToMatHelper : MonoBehaviour
@@ -233,7 +233,7 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
         public bool avoidAndroidFrontCameraLowLightIssue = false;
 
 
-        #if !UNITY_EDITOR
+#if !UNITY_EDITOR
         private bool _isCameraConnected = false;
         private bool _isCapturing = false;
         private bool _hasStarted = false;
@@ -249,6 +249,8 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
         private object _cameraLockObject = new object ();
 
         private PrivilegeRequester _privilegeRequester;
+
+        private bool _hasHandlePrivilegesDone = false;
 
 
         private Texture2D texture;
@@ -277,13 +279,24 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
             _timeoutFrameCount = (int)Mathf.Clamp (_timeoutFrameCount, 0f, float.MaxValue);
         }
 
-        #if UNITY_EDITOR
-        public void Awake ()
+        public void Awake()
         {
-            PrivilegeRequester privilegeRequester = GetComponent<PrivilegeRequester> ();
+#if !UNITY_EDITOR
+
+// If not listed here, the PrivilegeRequester assumes the request for
+// the privileges needed, CameraCapture in this case, are in the editor.
+_privilegeRequester = GetComponent<PrivilegeRequester> ();
+
+// Before enabling the Camera, the scene must wait until the privilege has been granted.
+_privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
+
+#else
+
+            PrivilegeRequester privilegeRequester = GetComponent<PrivilegeRequester>();
             privilegeRequester.enabled = false;
+
+#endif
         }
-        #endif
 
         // Update is called once per frame
         protected virtual void Update ()
@@ -482,14 +495,35 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
 
 #if !UNITY_EDITOR
 
-// If not listed here, the PrivilegeRequester assumes the request for
-// the privileges needed, CameraCapture in this case, are in the editor.
-_privilegeRequester = GetComponent<PrivilegeRequester> ();
+            int initFrameCount = 0;
+            bool isTimeout = false;
 
-// Before enabling the Camera, the scene must wait until the privilege has been granted.
-_privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
+            while (true) {
+                if (initFrameCount > timeoutFrameCount) {
+                    isTimeout = true;
+                    break;
+                } else {
 
-yield return null;
+                    if (_hasHandlePrivilegesDone)
+                    {
+                        StartCapture ();
+                        break;
+                    }
+
+                    initFrameCount++;
+                    yield return null;
+                }
+            }
+
+            if (isTimeout) {
+                isInitWaiting = false;
+                initCoroutine = null;
+
+                if (onErrorOccurred != null)
+                    onErrorOccurred.Invoke (ErrorCode.TIMEOUT);
+            }
+
+
 #else
 
             float requestedFPS = this.requestedFPS;
@@ -549,7 +583,7 @@ yield return null;
                     }
                 }
             }
-
+            
             if (webCamTexture == null) {
                 if (WebCamTexture.devices.Length > 0) {
                     webCamDevice = WebCamTexture.devices [0];
@@ -571,7 +605,7 @@ yield return null;
                     yield break;
                 }
             }
-
+            
             // Starts the camera
             webCamTexture.Play ();
 
@@ -603,7 +637,7 @@ yield return null;
 #endif
 #endif
 
-                    Debug.Log ("WebCamTextureToMatHelper:: " + "devicename:" + webCamTexture.deviceName + " name:" + webCamTexture.name + " width:" + webCamTexture.width + " height:" + webCamTexture.height + " fps:" + webCamTexture.requestedFPS
+                    Debug.Log ("MLCameraPreviewToMatHelper:: " + "devicename:" + webCamTexture.deviceName + " name:" + webCamTexture.name + " width:" + webCamTexture.width + " height:" + webCamTexture.height + " fps:" + webCamTexture.requestedFPS
                     + " videoRotationAngle:" + webCamTexture.videoRotationAngle + " videoVerticallyMirrored:" + webCamTexture.videoVerticallyMirrored + " isFrongFacing:" + webCamDevice.isFrontFacing);
 
                     if (colors == null || colors.Length != webCamTexture.width * webCamTexture.height)
@@ -655,12 +689,12 @@ yield return null;
                 if (onErrorOccurred != null)
                     onErrorOccurred.Invoke (ErrorCode.TIMEOUT);
             }
-
+            
 #endif
 
         }
 
-        #if !UNITY_EDITOR
+#if !UNITY_EDITOR
         
         /// <summary>
         /// Connects the MLCamera component and instantiates a new instance
@@ -705,6 +739,7 @@ yield return null;
         /// </summary>
         private void StartCapture ()
         {
+
             if (!_hasStarted) {
                 lock (_cameraLockObject) {
                     EnableMLCamera ();
@@ -719,7 +754,7 @@ yield return null;
                 texture = new Texture2D (MLCamera.PreviewTextureWidth, MLCamera.PreviewTextureHeight, TextureFormat.RGBA32, false);
 
 
-                Debug.Log ("WebCamTextureToMatHelper:: " + " width:" + MLCamera.PreviewTextureWidth + " height:" + MLCamera.PreviewTextureHeight);
+                Debug.Log ("MLCameraPreviewToMatHelper:: " + " width:" + MLCamera.PreviewTextureWidth + " height:" + MLCamera.PreviewTextureHeight);
                 
                 if (colors == null || colors.Length != MLCamera.PreviewTextureWidth * MLCamera.PreviewTextureHeight)
                     colors = new Color32[MLCamera.PreviewTextureWidth * MLCamera.PreviewTextureHeight];
@@ -743,6 +778,7 @@ yield return null;
                 
                 if (onInitialized != null)
                     onInitialized.Invoke ();
+
             }
         }
 
@@ -752,6 +788,7 @@ yield return null;
         /// <param name="result"/>
         private void HandlePrivilegesDone (MLResult result)
         {
+
             if (!result.IsOk) {
                 if (result.Code == MLResultCode.PrivilegeDenied) {
                     Instantiate (Resources.Load ("PrivilegeDeniedError"));
@@ -762,8 +799,9 @@ yield return null;
                 return;
             }
 
+            _hasHandlePrivilegesDone = true;
+
             Debug.Log ("Succeeded in requesting all privileges");
-            StartCapture ();
         }
 
 /// <summary>

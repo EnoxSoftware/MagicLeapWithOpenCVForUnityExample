@@ -221,7 +221,14 @@ namespace MagicLeapWithOpenCVForUnityExample
             //}
 
             rgbaMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC4);
-            bgrMat = new Mat(downscaleMat.rows(), downscaleMat.cols(), CvType.CV_8UC3);
+            if (enableDownScale)
+            {
+                bgrMat = new Mat(downscaleMat.rows(), downscaleMat.cols(), CvType.CV_8UC3);
+            }
+            else
+            {
+                bgrMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC3);
+            }
 
 
             //Main Process

@@ -139,7 +139,14 @@ namespace MagicLeapWithOpenCVForUnityExample
 
 
             rgbaMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC4);
-            grayMat = new Mat(downscaleMat.rows(), downscaleMat.cols(), CvType.CV_8UC1);
+            if (enableDownScale)
+            {
+                grayMat = new Mat(downscaleMat.rows(), downscaleMat.cols(), CvType.CV_8UC1);
+            }
+            else
+            {
+                grayMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC1);
+            }
 
             //Main Process
             Process();

@@ -14,7 +14,7 @@ using System.Linq;
 namespace MagicLeapWithOpenCVForUnityExample
 {
     [RequireComponent(typeof(PrivilegeRequester))]
-    public class OpenCVImageCaptureExample : MonoBehaviour
+    public class MagicLeapImageCaptureExample : MonoBehaviour
     {
         [System.Serializable]
         private class ImageCaptureEvent : UnityEvent<Texture2D>

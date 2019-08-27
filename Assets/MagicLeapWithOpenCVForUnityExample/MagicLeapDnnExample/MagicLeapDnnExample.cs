@@ -4,21 +4,22 @@ using OpenCVForUnity.DnnModule;
 using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using OpenCVForUnity.UnityUtils.Helper;
-using OpenCVForUnityExample;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+using UnityEngine.XR.MagicLeap;
+
 namespace MagicLeapWithOpenCVForUnityExample
 {
     /// <summary>
-    /// Dnn MLCameraPreview Example
+    /// MagicLeapDnn Example
     /// </summary>
     [RequireComponent(typeof(MLCameraPreviewToMatHelper), typeof(ImageOptimizationHelper))]
-    public class DnnMLCameraPreviewExample : MonoBehaviour
+    public class MagicLeapDnnExample : MonoBehaviour
     {
 
         [TooltipAttribute("Path to a binary file of model contains trained weights. It could be a file with extensions .caffemodel (Caffe), .pb (TensorFlow), .t7 or .net (Torch), .weights (Darknet).")]
@@ -70,15 +71,9 @@ namespace MagicLeapWithOpenCVForUnityExample
         ImageOptimizationHelper imageOptimizationHelper;
 
         /// <summary>
-        /// The FPS monitor.
-        /// </summary>
-        FpsMonitor fpsMonitor;
-
-        /// <summary>
         /// Determines if enable downscale.
         /// </summary>
         public bool enableDownScale;
-
 
         /// <summary>
         /// Determines if enable skipframe.
@@ -112,14 +107,57 @@ namespace MagicLeapWithOpenCVForUnityExample
         List<float> _confidencesList = new List<float>();
         List<OpenCVForUnity.CoreModule.Rect> _boxesList = new List<OpenCVForUnity.CoreModule.Rect>();
 
+        /// <summary>
+        /// the main camera.
+        /// </summary>
+        public Camera mainCamera;
 
-        CancellationTokenSource tokenSource = new CancellationTokenSource();
+        /// <summary>
+        /// The quad renderer.
+        /// </summary>
+        Renderer quad_renderer;
+
+        /// <summary>
+        /// The camera offset matrix.
+        /// </summary>
+        Matrix4x4 cameraOffsetM = Matrix4x4.Translate(new Vector3(-0.07f, -0.005f, 0));
+
+        readonly static Queue<Action> ExecuteOnMainThread = new Queue<Action>();
+        System.Object sync = new System.Object();
+
+        bool _isThreadRunning = false;
+        bool isThreadRunning
+        {
+            get
+            {
+                lock (sync)
+                    return _isThreadRunning;
+            }
+            set
+            {
+                lock (sync)
+                    _isThreadRunning = value;
+            }
+        }
+
+        bool _isDetecting = false;
+        bool isDetecting
+        {
+            get
+            {
+                lock (sync)
+                    return _isDetecting;
+            }
+            set
+            {
+                lock (sync)
+                    _isDetecting = value;
+            }
+        }
 
         // Use this for initialization
         void Start()
         {
-            fpsMonitor = GetComponent<FpsMonitor>();
-
             imageOptimizationHelper = gameObject.GetComponent<ImageOptimizationHelper>();
             webCamTextureToMatHelper = gameObject.GetComponent<MLCameraPreviewToMatHelper>();
 
@@ -188,37 +226,50 @@ namespace MagicLeapWithOpenCVForUnityExample
 
             texture = new Texture2D(webCamTextureMat.cols(), webCamTextureMat.rows(), TextureFormat.RGBA32, false);
 
-            gameObject.GetComponent<Renderer>().material.mainTexture = texture;
+            quad_renderer = gameObject.GetComponent<Renderer>() as Renderer;
+            quad_renderer.sharedMaterial.SetTexture("_MainTex", texture);
+            quad_renderer.sharedMaterial.SetVector("_VignetteOffset", new Vector4(0, 0));
+            quad_renderer.sharedMaterial.SetFloat("_VignetteScale", 0.0f);
 
-            //            gameObject.transform.localScale = new Vector3 (webCamTextureMat.cols (), webCamTextureMat.rows (), 1);
-            //            Debug.Log ("Screen.width " + Screen.width + " Screen.height " + Screen.height + " Screen.orientation " + Screen.orientation);
+#if PLATFORM_LUMIN && !UNITY_EDITOR
 
-            if (fpsMonitor != null)
+            // get camera intrinsic calibration parameters.
+            MLCVCameraIntrinsicCalibrationParameters outParameters = new MLCVCameraIntrinsicCalibrationParameters();
+            MLResult result = MLCamera.GetIntrinsicCalibrationParameters(out outParameters);
+            if (result.IsOk)
             {
-                fpsMonitor.Add("width", webCamTextureMat.width().ToString());
-                fpsMonitor.Add("height", webCamTextureMat.height().ToString());
-                fpsMonitor.Add("orientation", Screen.orientation.ToString());
-                fpsMonitor.Add("downscaleRaito", imageOptimizationHelper.downscaleRatio.ToString());
-                fpsMonitor.Add("frameSkippingRatio", imageOptimizationHelper.frameSkippingRatio.ToString());
-                fpsMonitor.Add("downscale_width", downscaleMat.width().ToString());
-                fpsMonitor.Add("downscale_height", downscaleMat.height().ToString());
-                fpsMonitor.Add("orientation", Screen.orientation.ToString());
+                //Imgproc.putText(webCamTextureMat, "Width : " + outParameters.Width, new Point(20, 90), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Height : " + outParameters.Height, new Point(20, 180), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "FocalLength : " + outParameters.FocalLength, new Point(20, 270), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "FOV : " + outParameters.FOV, new Point(20, 360), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "PrincipalPoint : " + outParameters.PrincipalPoint, new Point(20, 450), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Distortion [0] : " + outParameters.Distortion[0], new Point(20, 540), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Distortion [1] : " + outParameters.Distortion[1], new Point(20, 630), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Distortion [2] : " + outParameters.Distortion[2], new Point(20, 720), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Distortion [3] : " + outParameters.Distortion[3], new Point(20, 810), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                //Imgproc.putText(webCamTextureMat, "Distortion [4] : " + outParameters.Distortion[4], new Point(20, 900), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+            }
+            else
+            {
+                if (result.Code == MLResultCode.PrivilegeDenied)
+                {
+                    //Imgproc.putText(webCamTextureMat, "MLResultCode.PrivilegeDenied", new Point(20, 90), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                }
+                else if (result.Code == MLResultCode.UnspecifiedFailure)
+                {
+                    //Imgproc.putText(webCamTextureMat, "MLResultCode.UnspecifiedFailure", new Point(20, 90), Imgproc.FONT_HERSHEY_SIMPLEX, 3, new Scalar(255, 0, 0, 255), 5);
+                }
             }
 
+            Matrix4x4 projectionMatrix = ARUtils.CalculateProjectionMatrixFromCameraMatrixValues(outParameters.FocalLength.x, outParameters.FocalLength.y,
+                outParameters.PrincipalPoint.x, outParameters.PrincipalPoint.y, outParameters.Width, outParameters.Height, 0.3703704f, 10f);
 
-            //float width = webCamTextureMat.width();
-            //float height = webCamTextureMat.height();
+            quad_renderer.sharedMaterial.SetMatrix("_CameraProjectionMatrix", projectionMatrix);
+#else
+            quad_renderer.sharedMaterial.SetMatrix("_CameraProjectionMatrix", mainCamera.projectionMatrix);
+#endif
 
-            //float widthScale = (float)Screen.width / width;
-            //float heightScale = (float)Screen.height / height;
-            //if (widthScale < heightScale)
-            //{
-            //    Camera.main.orthographicSize = (width * (float)Screen.height / (float)Screen.width) / 2;
-            //}
-            //else
-            //{
-            //    Camera.main.orthographicSize = height / 2;
-            //}
+            //            Debug.Log ("Screen.width " + Screen.width + " Screen.height " + Screen.height + " Screen.orientation " + Screen.orientation);
 
             rgbaMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC4);
             if (enableDownScale)
@@ -230,9 +281,6 @@ namespace MagicLeapWithOpenCVForUnityExample
                 bgrMat = new Mat(webCamTextureMat.rows(), webCamTextureMat.cols(), CvType.CV_8UC3);
             }
 
-
-            //Main Process
-            Process();
         }
 
         /// <summary>
@@ -242,8 +290,12 @@ namespace MagicLeapWithOpenCVForUnityExample
         {
             Debug.Log("OnWebCamTextureToMatHelperDisposed");
 
-            //Cancel Task
-            tokenSource.Cancel();
+            StopThread();
+            lock (ExecuteOnMainThread)
+            {
+                ExecuteOnMainThread.Clear();
+            }
+            isDetecting = false;
 
 
             if (rgbaMat != null)
@@ -251,14 +303,6 @@ namespace MagicLeapWithOpenCVForUnityExample
 
             if (bgrMat != null)
                 bgrMat.Dispose();
-
-            if (texture != null)
-            {
-                Texture2D.Destroy(texture);
-                texture = null;
-            }
-
-
 
             if (texture != null)
             {
@@ -280,6 +324,212 @@ namespace MagicLeapWithOpenCVForUnityExample
         void Update()
         {
 
+            lock (ExecuteOnMainThread)
+            {
+                while (ExecuteOnMainThread.Count > 0)
+                {
+                    ExecuteOnMainThread.Dequeue().Invoke();
+                }
+            }
+
+            if (webCamTextureToMatHelper.IsPlaying() && webCamTextureToMatHelper.DidUpdateThisFrame())
+            {
+                if (!enableSkipFrame || !imageOptimizationHelper.IsCurrentFrameSkipped())
+                {
+
+                    if (!isDetecting)
+                    {
+                        isDetecting = true;
+
+
+                        rgbaMat = webCamTextureToMatHelper.GetMat();
+                        // Debug.Log ("rgbaMat.ToString() " + rgbaMat.ToString ());
+
+
+                        Mat downScaleRgbaMat = null;
+                        float DOWNSCALE_RATIO = 1.0f;
+                        if (enableDownScale)
+                        {
+                            downScaleRgbaMat = imageOptimizationHelper.GetDownScaleMat(rgbaMat);
+                            DOWNSCALE_RATIO = imageOptimizationHelper.downscaleRatio;
+                        }
+                        else
+                        {
+                            downScaleRgbaMat = rgbaMat;
+                            DOWNSCALE_RATIO = 1.0f;
+                        }
+                        Imgproc.cvtColor(downScaleRgbaMat, bgrMat, Imgproc.COLOR_RGBA2BGR);
+                        
+                        
+                        StartThread(
+                            // action
+                            () =>
+                            {
+
+                                if (net == null)
+                                {
+
+                                    Imgproc.putText(rgbaMat, "model file is not loaded.", new Point(5, rgbaMat.rows() - 30), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, new Scalar(255, 255, 255, 255), 2, Imgproc.LINE_AA, false);
+                                    Imgproc.putText(rgbaMat, "Please read console message.", new Point(5, rgbaMat.rows() - 10), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, new Scalar(255, 255, 255, 255), 2, Imgproc.LINE_AA, false);
+
+                                }
+                                else
+                                {
+
+
+                                    // Create a 4D blob from a frame.
+                                    Size inpSize = new Size(inpWidth > 0 ? inpWidth : bgrMat.cols(),
+                                                       inpHeight > 0 ? inpHeight : bgrMat.rows());
+                                    Mat blob = Dnn.blobFromImage(bgrMat, scale, inpSize, mean, swapRB, false);
+
+
+                                    // Run a model.
+                                    net.setInput(blob);
+
+                                    if (net.getLayer(new DictValue(0)).outputNameToIndex("im_info") != -1)
+                                    {  // Faster-RCNN or R-FCN
+                                        Imgproc.resize(bgrMat, bgrMat, inpSize);
+                                        Mat imInfo = new Mat(1, 3, CvType.CV_32FC1);
+                                        imInfo.put(0, 0, new float[] {
+                                            (float)inpSize.height,
+                                            (float)inpSize.width,
+                                            1.6f
+                                        });
+                                        net.setInput(imInfo, "im_info");
+                                    }
+
+
+                                    //TickMeter tm = new TickMeter();
+                                    //tm.start();
+
+                                    List<Mat> outs = new List<Mat>();
+                                    net.forward(outs, outBlobNames);
+
+                                    //tm.stop();
+                                    //Debug.Log ("Inference time, ms: " + tm.getTimeMilli ());
+
+
+                                    postprocess(bgrMat, outs, net);
+
+                                    for (int i = 0; i < outs.Count; i++)
+                                    {
+                                        outs[i].Dispose();
+                                    }
+                                    blob.Dispose();
+
+
+                                    if (enableDownScale)
+                                    {
+                                        for (int i = 0; i < _boxesList.Count; ++i)
+                                        {
+                                            var rect = _boxesList[i];
+                                            _boxesList[i] = new OpenCVForUnity.CoreModule.Rect(
+                                                (int)(rect.x * DOWNSCALE_RATIO),
+                                            (int)(rect.y * DOWNSCALE_RATIO),
+                                            (int)(rect.width * DOWNSCALE_RATIO),
+                                            (int)(rect.height * DOWNSCALE_RATIO));
+                                        }
+
+                                    }
+                                }
+
+                            },
+                            // done
+                            () => {
+
+                                // hide camera image.
+                                //Imgproc.rectangle(rgbaMat, new Point(0, 0), new Point(rgbaMat.width(), rgbaMat.height()), new Scalar(0, 0, 0, 0), -1);
+
+
+                                MatOfRect boxes = new MatOfRect();
+                                boxes.fromList(_boxesList);
+
+                                MatOfFloat confidences = new MatOfFloat();
+                                confidences.fromList(_confidencesList);
+
+
+                                MatOfInt indices = new MatOfInt();
+                                Dnn.NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
+
+                                //            Debug.Log ("indices.dump () "+indices.dump ());
+                                //            Debug.Log ("indices.ToString () "+indices.ToString());
+
+                                for (int i = 0; i < indices.total(); ++i)
+                                {
+                                    int idx = (int)indices.get(i, 0)[0];
+                                    OpenCVForUnity.CoreModule.Rect box = _boxesList[idx];
+                                    drawPred(_classIdsList[idx], _confidencesList[idx], box.x, box.y,
+                                        box.x + box.width, box.y + box.height, rgbaMat);
+                                }
+
+                                indices.Dispose();
+                                boxes.Dispose();
+                                confidences.Dispose();
+
+
+                                Utils.fastMatToTexture2D(rgbaMat, texture);
+
+
+                                isDetecting = false;
+                            }
+                        );
+                    }
+
+                }
+            }
+
+            if (webCamTextureToMatHelper.IsPlaying())
+            {
+                Matrix4x4 cameraToWorldMatrix = mainCamera.cameraToWorldMatrix;
+                cameraToWorldMatrix = cameraOffsetM * cameraToWorldMatrix;
+                Matrix4x4 worldToCameraMatrix = cameraToWorldMatrix.inverse;
+
+                quad_renderer.sharedMaterial.SetMatrix("_WorldToCameraMatrix", worldToCameraMatrix);
+
+                // Position the canvas object slightly in front
+                // of the real world web camera.
+                Vector3 position = cameraToWorldMatrix.GetColumn(3) - cameraToWorldMatrix.GetColumn(2);
+                position *= 2.2f;
+
+                // Rotate the canvas object so that it faces the user.
+                Quaternion rotation = Quaternion.LookRotation(-cameraToWorldMatrix.GetColumn(2), cameraToWorldMatrix.GetColumn(1));
+
+                gameObject.transform.position = position;
+                gameObject.transform.rotation = rotation;
+            }
+
+        }
+
+        private void StartThread(Action action, Action done)
+        {
+            Task.Run(() => {
+                isThreadRunning = true;
+
+                action();
+
+                lock (ExecuteOnMainThread)
+                {
+                    if (ExecuteOnMainThread.Count == 0)
+                    {
+                        ExecuteOnMainThread.Enqueue(() => {
+                            done();
+                        });
+                    }
+                }
+
+                isThreadRunning = false;
+            });
+        }
+
+        private void StopThread()
+        {
+            if (!isThreadRunning)
+                return;
+
+            while (isThreadRunning)
+            {
+                //Wait threading stop
+            }
         }
 
         /// <summary>
@@ -521,36 +771,9 @@ namespace MagicLeapWithOpenCVForUnityExample
                 Debug.Log("Unknown output layer type: " + outLayerType);
             }
 
-
-            //MatOfRect boxes = new MatOfRect();
-            //boxes.fromList(boxesList);
-
-            //MatOfFloat confidences = new MatOfFloat();
-            //confidences.fromList(confidencesList);
-
-
-            //MatOfInt indices = new MatOfInt();
-            //Dnn.NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-
-            ////            Debug.Log ("indices.dump () "+indices.dump ());
-            ////            Debug.Log ("indices.ToString () "+indices.ToString());
-
-            //for (int i = 0; i < indices.total(); ++i)
-            //{
-            //    int idx = (int)indices.get(i, 0)[0];
-            //    OpenCVForUnity.CoreModule.Rect box = boxesList[idx];
-            //    drawPred(classIdsList[idx], confidencesList[idx], box.x, box.y,
-            //        box.x + box.width, box.y + box.height, frame);
-            //}
-
-            //indices.Dispose();
-            //boxes.Dispose();
-            //confidences.Dispose();
-
             _classIdsList = new List<int>(classIdsList);
             _confidencesList = new List<float>(confidencesList);
             _boxesList = new List<OpenCVForUnity.CoreModule.Rect>(boxesList);
-
         }
 
         /// <summary>
@@ -623,162 +846,6 @@ namespace MagicLeapWithOpenCVForUnityExample
             outLayers.Dispose();
 
             return types;
-        }
-
-
-        /// <summary>
-        /// Process
-        /// </summary>
-        /// <returns></returns>
-        private async void Process()
-        {
-
-            float DOWNSCALE_RATIO = 1.0f;
-
-            while (true)
-            {
-                // Check TaskCancel
-                if (tokenSource.Token.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                rgbaMat = webCamTextureToMatHelper.GetMat();
-                // Debug.Log ("rgbaMat.ToString() " + rgbaMat.ToString ());
-
-                Mat downScaleRgbaMat = null;
-                DOWNSCALE_RATIO = 1.0f;
-                if (enableDownScale)
-                {
-                    downScaleRgbaMat = imageOptimizationHelper.GetDownScaleMat(rgbaMat);
-                    DOWNSCALE_RATIO = imageOptimizationHelper.downscaleRatio;
-                }
-                else
-                {
-                    downScaleRgbaMat = rgbaMat;
-                    DOWNSCALE_RATIO = 1.0f;
-                }
-                Imgproc.cvtColor(downScaleRgbaMat, bgrMat, Imgproc.COLOR_RGBA2BGR);
-
-
-
-                await Task.Run(() =>
-                {
-
-                    // detect faces on the downscale image
-                    if (!enableSkipFrame || !imageOptimizationHelper.IsCurrentFrameSkipped())
-                    {
-
-                        if (net == null)
-                        {
-
-                            Imgproc.putText(rgbaMat, "model file is not loaded.", new Point(5, rgbaMat.rows() - 30), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, new Scalar(255, 255, 255, 255), 2, Imgproc.LINE_AA, false);
-                            Imgproc.putText(rgbaMat, "Please read console message.", new Point(5, rgbaMat.rows() - 10), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, new Scalar(255, 255, 255, 255), 2, Imgproc.LINE_AA, false);
-
-                        }
-                        else
-                        {
-
-
-                            // Create a 4D blob from a frame.
-                            Size inpSize = new Size(inpWidth > 0 ? inpWidth : bgrMat.cols(),
-                                               inpHeight > 0 ? inpHeight : bgrMat.rows());
-                            Mat blob = Dnn.blobFromImage(bgrMat, scale, inpSize, mean, swapRB, false);
-
-
-                            // Run a model.
-                            net.setInput(blob);
-
-                            if (net.getLayer(new DictValue(0)).outputNameToIndex("im_info") != -1)
-                            {  // Faster-RCNN or R-FCN
-                                Imgproc.resize(bgrMat, bgrMat, inpSize);
-                                Mat imInfo = new Mat(1, 3, CvType.CV_32FC1);
-                                imInfo.put(0, 0, new float[] {
-                                (float)inpSize.height,
-                                (float)inpSize.width,
-                                1.6f
-                            });
-                                net.setInput(imInfo, "im_info");
-                            }
-
-
-                            TickMeter tm = new TickMeter();
-                            tm.start();
-
-                            List<Mat> outs = new List<Mat>();
-                            net.forward(outs, outBlobNames);
-
-                            tm.stop();
-                            //                    Debug.Log ("Inference time, ms: " + tm.getTimeMilli ());
-
-
-                            postprocess(bgrMat, outs, net);
-
-                            for (int i = 0; i < outs.Count; i++)
-                            {
-                                outs[i].Dispose();
-                            }
-                            blob.Dispose();
-
-
-                            if (enableDownScale)
-                            {
-                                for (int i = 0; i < _boxesList.Count; ++i)
-                                {
-                                    var rect = _boxesList[i];
-                                    _boxesList[i] = new OpenCVForUnity.CoreModule.Rect(
-                                        (int)(rect.x * DOWNSCALE_RATIO),
-                                    (int)(rect.y * DOWNSCALE_RATIO),
-                                    (int)(rect.width * DOWNSCALE_RATIO),
-                                    (int)(rect.height * DOWNSCALE_RATIO));
-                                }
-
-                            }
-                        }
-
-
-                        //Imgproc.rectangle(rgbaMat, new Point(0, 0), new Point(rgbaMat.width(), rgbaMat.height()), new Scalar(0, 0, 0, 0), -1);
-
-
-                        MatOfRect boxes = new MatOfRect();
-                        boxes.fromList(_boxesList);
-
-                        MatOfFloat confidences = new MatOfFloat();
-                        confidences.fromList(_confidencesList);
-
-
-                        MatOfInt indices = new MatOfInt();
-                        Dnn.NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-
-                        //            Debug.Log ("indices.dump () "+indices.dump ());
-                        //            Debug.Log ("indices.ToString () "+indices.ToString());
-
-                        for (int i = 0; i < indices.total(); ++i)
-                        {
-                            int idx = (int)indices.get(i, 0)[0];
-                            OpenCVForUnity.CoreModule.Rect box = _boxesList[idx];
-                            drawPred(_classIdsList[idx], _confidencesList[idx], box.x, box.y,
-                                box.x + box.width, box.y + box.height, rgbaMat);
-                        }
-
-                        indices.Dispose();
-                        boxes.Dispose();
-                        confidences.Dispose();
-                    }
-                });
-
-
-                
-
-                Utils.fastMatToTexture2D(rgbaMat, texture);
-
-
-                Thread.Sleep(10);
-
-
-            }
-
-
         }
 
     }

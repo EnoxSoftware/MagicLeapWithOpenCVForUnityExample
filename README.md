@@ -27,5 +27,5 @@
 ## ScreenShot
 ![magicleap_yoloexample.jpg](magicleap_yoloexample.jpg) 
 ![aruco.PNG](aruco.PNG)
-In the current code, the overlap between the holographic object and the actual object is not accurate. The holographic object is shifted to the right for some reason. Pull requests are always welcome.
+
 

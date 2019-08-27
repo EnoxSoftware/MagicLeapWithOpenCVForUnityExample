@@ -12,7 +12,7 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
 {
     /// <summary>
     /// MLCameraPreview to mat helper.
-    /// v 1.1.1
+    /// v 1.1.2
     /// </summary>
     [RequireComponent (typeof(PrivilegeRequester))]
     public class MLCameraPreviewToMatHelper : MonoBehaviour
@@ -94,7 +94,7 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
                 if (hasInitDone) {
                     bool isPlaying = IsPlaying ();
                     Stop ();
-#if UNITY_EDITOR
+#if !PLATFORM_LUMIN || UNITY_EDITOR
                     webCamTexture.requestedFPS = _requestedFPS;
 #endif
                     if (isPlaying)
@@ -233,7 +233,7 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
         public bool avoidAndroidFrontCameraLowLightIssue = false;
 
 
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
         private bool _isCameraConnected = false;
         private bool _isCapturing = false;
         private bool _hasStarted = false;
@@ -252,8 +252,10 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
 
         private bool _hasHandlePrivilegesDone = false;
 
+        private Texture2D _texture;
 
-        private Texture2D texture;
+        private Matrix4x4 _cameraOffsetMatrix = Matrix4x4.Translate(new Vector3(-0.07f, -0.005f, 0));
+        private Matrix4x4 _cameraProjectionMatrix;
 #endif
 
 
@@ -281,14 +283,14 @@ namespace MagicLeapWithOpenCVForUnity.UnityUtils.Helper
 
         public void Awake()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
 
-// If not listed here, the PrivilegeRequester assumes the request for
-// the privileges needed, CameraCapture in this case, are in the editor.
-_privilegeRequester = GetComponent<PrivilegeRequester> ();
+            // If not listed here, the PrivilegeRequester assumes the request for
+            // the privileges needed, CameraCapture in this case, are in the editor.
+            _privilegeRequester = GetComponent<PrivilegeRequester> ();
 
-// Before enabling the Camera, the scene must wait until the privilege has been granted.
-_privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
+            // Before enabling the Camera, the scene must wait until the privilege has been granted.
+            _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
 
 #else
 
@@ -301,7 +303,7 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
         // Update is called once per frame
         protected virtual void Update ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             if (_doPrivPopup && !_hasShownPrivPopup) {
                 Instantiate (Resources.Load ("PrivilegeDeniedError"));
                 _doPrivPopup = false;
@@ -363,13 +365,13 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
         /// </summary>
         protected virtual void OnDestroy ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             if (_privilegeRequester != null) {
                 _privilegeRequester.OnPrivilegesDone -= HandlePrivilegesDone;
             }
 #endif
 
-            Dispose ();
+            Dispose();
         }
 
         /// <summary>
@@ -493,7 +495,7 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
 
             isInitWaiting = true;
 
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
 
             int initFrameCount = 0;
             bool isTimeout = false;
@@ -694,7 +696,7 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
 
         }
 
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
         
         /// <summary>
         /// Connects the MLCamera component and instantiates a new instance
@@ -747,12 +749,34 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
 
                 _hasStarted = true;
 
-
                 MLCamera.StartPreview ();
 
 
-                texture = new Texture2D (MLCamera.PreviewTextureWidth, MLCamera.PreviewTextureHeight, TextureFormat.RGBA32, false);
 
+                // get camera intrinsic calibration parameters.
+                MLCVCameraIntrinsicCalibrationParameters outParameters = new MLCVCameraIntrinsicCalibrationParameters();
+                MLResult result = MLCamera.GetIntrinsicCalibrationParameters(out outParameters);
+                if (result.IsOk)
+                {
+                    _cameraProjectionMatrix = ARUtils.CalculateProjectionMatrixFromCameraMatrixValues(outParameters.FocalLength.x, outParameters.FocalLength.y,
+                        outParameters.PrincipalPoint.x, outParameters.PrincipalPoint.y, outParameters.Width, outParameters.Height, 0.3703704f, 10f);
+                }
+                else
+                {
+                    if (result.Code == MLResultCode.PrivilegeDenied)
+                    {
+                        Debug.LogError("MLResultCode.PrivilegeDenied");
+                    }
+                    else if (result.Code == MLResultCode.UnspecifiedFailure)
+                    {
+                        Debug.LogError("MLResultCode.UnspecifiedFailure");
+                    }
+
+                    _cameraProjectionMatrix = Camera.main.projectionMatrix;
+                }
+
+
+                _texture = new Texture2D (MLCamera.PreviewTextureWidth, MLCamera.PreviewTextureHeight, TextureFormat.RGBA32, false);
 
                 Debug.Log ("MLCameraPreviewToMatHelper:: " + " width:" + MLCamera.PreviewTextureWidth + " height:" + MLCamera.PreviewTextureHeight);
                 
@@ -804,25 +828,25 @@ _privilegeRequester.OnPrivilegesDone += HandlePrivilegesDone;
             Debug.Log ("Succeeded in requesting all privileges");
         }
 
-/// <summary>
-/// Cannot make the assumption that a reality privilege is still granted after
-/// returning from pause. Return the application to the state where it
-/// requests privileges needed and clear out the list of already granted
-/// privileges. Also, disable the camera and unregister callbacks.
-/// </summary>
-void OnApplicationPause (bool pause)
-{
-if (pause) {
-lock (_cameraLockObject) {
-if (_isCameraConnected) {
-_isCapturing = false;
-DisableMLCamera ();
-}
-}
+        /// <summary>
+        /// Cannot make the assumption that a reality privilege is still granted after
+        /// returning from pause. Return the application to the state where it
+        /// requests privileges needed and clear out the list of already granted
+        /// privileges. Also, disable the camera and unregister callbacks.
+        /// </summary>
+        void OnApplicationPause (bool pause)
+        {
+            if (pause) {
+                lock (_cameraLockObject) {
+                    if (_isCameraConnected) {
+                        _isCapturing = false;
+                        DisableMLCamera ();
+                    }
+                }
 
-_hasStarted = false;
-}
-}
+                _hasStarted = false;
+            }
+        }
 #endif
 
         /// <summary>
@@ -839,7 +863,7 @@ _hasStarted = false;
         /// </summary>
         public virtual void Play ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             if (hasInitDone)
                 MLCamera.StartPreview ();
 #else
@@ -853,7 +877,7 @@ _hasStarted = false;
         /// </summary>
         public virtual void Pause ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             if (hasInitDone)
                 MLCamera.StopPreview ();
 #else
@@ -867,7 +891,7 @@ _hasStarted = false;
         /// </summary>
         public virtual void Stop ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             if (hasInitDone)
                 MLCamera.StopPreview ();
 #else
@@ -882,9 +906,9 @@ _hasStarted = false;
         /// <returns><c>true</c>, if the active camera is playing, <c>false</c> otherwise.</returns>
         public virtual bool IsPlaying ()
         {
-#if !UNITY_EDITOR
-//return hasInitDone ? MLCamera.Previewing : false;
-return hasInitDone;
+#if PLATFORM_LUMIN && !UNITY_EDITOR
+            //return hasInitDone ? MLCamera.Previewing : false;
+            return hasInitDone;
 #else
             return hasInitDone ? webCamTexture.isPlaying : false;
 #endif
@@ -896,7 +920,7 @@ return hasInitDone;
         /// <returns><c>true</c>, if the active camera device is front facng, <c>false</c> otherwise.</returns>
         public virtual bool IsFrontFacing ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             return false;
 #else
             return hasInitDone ? webCamDevice.isFrontFacing : false;
@@ -909,7 +933,7 @@ return hasInitDone;
         /// <returns>The active camera device name.</returns>
         public virtual string GetDeviceName ()
         {
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             return "MagicLeap Camera";
 #else
             return hasInitDone ? webCamTexture.deviceName : "";
@@ -944,8 +968,8 @@ return hasInitDone;
         /// <returns>The active camera framerate.</returns>
         public virtual float GetFPS ()
         {
-#if !UNITY_EDITOR
-return -1f;
+#if PLATFORM_LUMIN && !UNITY_EDITOR
+            return -1f;
 #else
             return hasInitDone ? webCamTexture.requestedFPS : -1f;
 #endif
@@ -953,7 +977,7 @@ return -1f;
 
         }
 
-        #if UNITY_EDITOR
+        #if !PLATFORM_LUMIN || UNITY_EDITOR
         /// <summary>
         /// Returns the active WebcamTexture.
         /// </summary>
@@ -980,7 +1004,11 @@ return -1f;
         /// <returns>The camera to world matrix.</returns>
         public virtual Matrix4x4 GetCameraToWorldMatrix ()
         {
+#if PLATFORM_LUMIN && !UNITY_EDITOR
+            return _cameraOffsetMatrix * Camera.main.cameraToWorldMatrix;
+#else
             return Camera.main.cameraToWorldMatrix;
+#endif
         }
 
         /// <summary>
@@ -989,7 +1017,14 @@ return -1f;
         /// <returns>The projection matrix.</returns>
         public virtual Matrix4x4 GetProjectionMatrix ()
         {
+#if PLATFORM_LUMIN && !UNITY_EDITOR
+            if (!hasInitDone)
+                return Camera.main.projectionMatrix;
+
+            return _cameraProjectionMatrix;
+#else
             return Camera.main.projectionMatrix;
+#endif
         }
 
         /// <summary>
@@ -1008,7 +1043,7 @@ return -1f;
                 return false;
             }
 #else
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
             return true;
 #else
             return webCamTexture.didUpdateThisFrame;
@@ -1024,18 +1059,18 @@ return -1f;
         public virtual Mat GetMat ()
         {
 
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
 //          if (!hasInitDone || !MLCamera.Previewing) {
             if (!hasInitDone) {
                 return (rotatedFrameMat != null) ? rotatedFrameMat : frameMat;
             }
 
             //Because MLCamera.PreviewTexture2D is not readable, you can not get pixels directly. So, Utils.textureToTexture2D () is used.
-            //Utils.texture2DToMat (MLCamera.PreviewTexture2D, frameMat);
-            Utils.textureToTexture2D (MLCamera.PreviewTexture2D, texture);
-            //Graphics.CopyTexture(MLCamera.PreviewTexture2D, texture);
+//            Utils.texture2DToMat (MLCamera.PreviewTexture2D, frameMat);
+            Utils.textureToTexture2D (MLCamera.PreviewTexture2D, _texture);
+//            Graphics.CopyTexture(MLCamera.PreviewTexture2D, _texture);
             
-            Utils.texture2DToMat (texture, frameMat);
+            Utils.texture2DToMat (_texture, frameMat);
 
 //            int numChannels = 4;
 //            Utils.copyToMat<byte>(MagicLeapInternal.MLTextureUtils.ConvertToByteArray(MLCamera.PreviewTexture2D, out numChannels), frameMat);
@@ -1088,10 +1123,10 @@ return frameMat;
                 }
                 else
                 {
-            // (Orientation is Landscape, rotate90Degree is false)
-            FlipMat (frameMat, flipVertical, flipHorizontal);
+                    // (Orientation is Landscape, rotate90Degree is false)
+                    FlipMat (frameMat, flipVertical, flipHorizontal);
                 }
-            return frameMat;
+                return frameMat;
             }
 #else
             FlipMat (frameMat, flipVertical, flipHorizontal);
@@ -1115,7 +1150,7 @@ return frameMat;
             //Since the order of pixels of WebCamTexture and Mat is opposite, the initial value of flipCode is set to 0 (flipVertical).
             int flipCode = 0;
 
-#if UNITY_EDITOR
+#if !PLATFORM_LUMIN || UNITY_EDITOR
             if (webCamDevice.isFrontFacing) {
                 if (webCamTexture.videoRotationAngle == 0) {
                     flipCode = -1;
@@ -1194,15 +1229,15 @@ return frameMat;
             isInitWaiting = false;
             hasInitDone = false;
 
-#if !UNITY_EDITOR
+#if PLATFORM_LUMIN && !UNITY_EDITOR
 //            MLInput.OnControllerButtonDown -= OnButtonDown;
-lock (_cameraLockObject) {
-if (_isCameraConnected) {
+            lock (_cameraLockObject) {
+                if (_isCameraConnected) {
 //                    MLCamera.OnRawImageAvailable -= OnCaptureRawImageComplete;
-_isCapturing = false;
-DisableMLCamera ();
-}
-}
+                    _isCapturing = false;
+                    DisableMLCamera ();
+                }
+            }
 
 #else
             if (webCamTexture != null) {
@@ -1243,8 +1278,6 @@ DisableMLCamera ();
                 if (onDisposed != null)
                     onDisposed.Invoke ();
             }
-        }
-            
-            
+        } 
     }
 }

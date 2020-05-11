@@ -2,15 +2,15 @@
 
 
 ## Environment
-* MagicLeapOne Lumin OS 0.97
-* Unity 2019.2.0b10 (64-bit)  
-* [OpenCV for Unity](https://assetstore.unity.com/packages/tools/integration/opencv-for-unity-21088?aid=1011l4ehR) 2.3.5+ 
+* MagicLeapOne Lumin OS 0.98.10
+* Lumin SDK 0.24.1
+* Unity 2019.3.10f1 (64-bit)  
+* [OpenCV for Unity](https://assetstore.unity.com/packages/tools/integration/opencv-for-unity-21088?aid=1011l4ehR) 2.3.9+ 
 
 
 ## Setup
 1. Download the latest release unitypackage. [MagicLeapWithOpenCVForUnityExample.unitypackage](https://github.com/EnoxSoftware/MagicLeapWithOpenCVForUnityExample/releases)
-1. Create a new project. (MagicLeapWithOpenCVForUnityExample)
-1. Import "C:/Users/xxx/MagicLeap/tools/unity/v0.22.0/MagicLeap.unitypackage"
+1. Create a new project. (MagicLeapWithOpenCVForUnityExample) and [setup UnityProject](https://developer.magicleap.com/learn/guides/get-started-developing-in-unity).
 1. Import the OpenCVForUnity.
     * Setup the OpenCVForUnity. (Tools > OpenCV for Unity > Set Plugin Import Settings)
     * Move the "OpenCVForUnity/StreamingAssets/" folder to the "Assets/" folder.
@@ -21,11 +21,10 @@
 1. Check CameraCapture and ComputerVision checkbox in Publishing Settings.
    ![manifest_settings.PNG](manifest_settings.PNG)
 1. Build and Deploy to MagicLeap.
-    * (Print the AR marker "ArUcoMarker_DICT_6X6_250_ID1.pdf" on an A4 size paper)
 
 
 ## ScreenShot
-![magicleap_yoloexample.jpg](magicleap_yoloexample.jpg) 
-![aruco.PNG](aruco.PNG)
+![dnn_imagecapture_example.jpg](dnn_imagecapture_example.jpg) 
+![facedetection_rawvideocapture_example.jpg](facedetection_rawvideocapture_example.jpg)
 
 

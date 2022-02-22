@@ -71,7 +71,7 @@ namespace MagicLeap
         /// <summary>
         /// LBP_CASCADE_FILENAME
         /// </summary>
-        protected static readonly string LBP_CASCADE_FILENAME = "lbpcascade_frontalface.xml";
+        protected static readonly string LBP_CASCADE_FILENAME = "objdetect/lbpcascade_frontalface.xml";
 
 
         /// <summary>

@@ -364,26 +364,19 @@ namespace MagicLeap
         /// </summary>
         private void UpdateStatusText()
         {
-            _statusText.text = string.Format("<color=#dbfb76><b>{0} </b></color>\n{1}: {2}\n",
-                 LocalizeManager.GetString("ControllerData"),
-                 LocalizeManager.GetString("Status"),
-                 LocalizeManager.GetString(ControllerStatus.Text));
+            _statusText.text = string.Format("<color=#dbfb76><b>Controller Data </b></color>\nStatus: {0}\n", ControllerStatus.Text);
 
-            _statusText.text += string.Format("\n<color=#dbfb76><b>{0}</b></color>:\n", LocalizeManager.GetString("VideoData"));
+            _statusText.text += "\n<color=#dbfb76><b>VideoData</b></color>:\n";
 
             if (_rawVideoCaptureMode)
             {
-                _statusText.text += string.Format("{0}: {1}\n",
-                    LocalizeManager.GetString("Mode"),
-                    LocalizeManager.GetString("RawVideoCapture"));
+                _statusText.text += "Mode: Raw Video Capture\n";
 
                 _statusText.text += _intrinsicValuesText;
             }
             else
             {
-                _statusText.text += string.Format("{0}: {1}\n",
-                    LocalizeManager.GetString("Mode"),
-                    LocalizeManager.GetString("VideoCapture"));
+                _statusText.text += "Mode: Video Capture\n";
             }
         }
 
@@ -585,13 +578,13 @@ namespace MagicLeap
         static string CalibrationParametersToString(MLCamera.IntrinsicCalibrationParameters parameters)
         {
             StringBuilder b = new StringBuilder();
-            b.AppendFormat("\n <color=#dbfb76><b>{0}  {1}:</b></color>", LocalizeManager.GetString("Camera"), LocalizeManager.GetString("IntrinsicValues"))
-                .AppendFormat("\n   {0}: {1}", LocalizeManager.GetString("Width"), parameters.Width)
-                .AppendFormat("\n   {0}: {1}", LocalizeManager.GetString("Height"), parameters.Height)
-                .AppendFormat("\n   {0}: {1}", LocalizeManager.GetString("FocalLength"), parameters.FocalLength)
-                .AppendFormat("\n   {0}: {1}", LocalizeManager.GetString("PrincipalPoint"), parameters.PrincipalPoint)
-                .AppendFormat("\n   {0}: {1}", LocalizeManager.GetString("FOV"), parameters.FOV)
-                .AppendFormat("\n   {0}:", LocalizeManager.GetString("DistortionCoeff"));
+            b.AppendFormat("\n <color=#dbfb76><b>Camera  Intrinsic Values:</b></color>")
+    .AppendFormat("\n   Width: {0}", parameters.Width)
+    .AppendFormat("\n   Height: {0}", parameters.Height)
+    .AppendFormat("\n   Focal Length: {0}", parameters.FocalLength)
+    .AppendFormat("\n   Principal Point: {0}", parameters.PrincipalPoint)
+    .AppendFormat("\n   FOV: {0}", parameters.FOV)
+    .AppendFormat("\n   Distortion Coeff:");
             for (int i = 0; i < parameters.Distortion.Length; ++i)
             {
                 b.AppendFormat("\n   [{0}]: {1}", i, parameters.Distortion[i]);

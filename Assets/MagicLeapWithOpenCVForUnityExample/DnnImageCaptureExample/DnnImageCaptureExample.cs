@@ -313,10 +313,7 @@ namespace MagicLeap
         /// </summary>
         private void UpdateStatusText()
         {
-            _statusText.text = string.Format("<color=#dbfb76><b>{0}</b></color>\n{1}: {2}\n",
-                LocalizeManager.GetString("ControllerData"),
-                LocalizeManager.GetString("Status"),
-                LocalizeManager.GetString(ControllerStatus.Text));
+            _statusText.text = string.Format("<color=#dbfb76><b>Controller Data</b></color>\nStatus: {0}\n", ControllerStatus.Text);
         }
 
         /// <summary>
